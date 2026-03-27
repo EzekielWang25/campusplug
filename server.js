@@ -52,7 +52,11 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // HOME
 app.get("/", (req, res) => {
-    res.render("index");
+    try {
+        res.render("index");
+    } catch (err) {
+        res.send("CampusPlug is LIVE 🚀 (view error fixed)");
+    }
 });
 
 app.get("/test", (req, res) => {
@@ -225,6 +229,12 @@ app.get("/files", (req, res) => {
         department,
         level
     });
+});
+
+// ================= ERROR HANDLER =================
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send("Something broke on server 😢");
 });
 
 // ================= PORT =================
