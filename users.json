@@ -1,0 +1,16 @@
+[
+  {
+    "username": "john",
+    "password": "1234",
+    "school": "uniport",
+    "department": "computer science",
+    "level": "200"
+  },
+  {
+    "username": "mike",
+    "password": "$2b$10$aHCk2mbfLfGKtPU7rqQkleh/rK2riQoydVHsYilMik4nOXX4m6DOu",
+    "school": "pti",
+    "department": "eec",
+    "level": "100"
+  }
+]

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>Welcome <%= user.username %> 🎉</h1>
+
+    <p><strong>School:</strong> <%= user.school %></p>
+    <p><strong>Department:</strong> <%= user.department %></p>
+    <p><strong>Level:</strong> <%= user.level %></p>
+
+    <hr>
+
+    <h2>Actions</h2>
+
+    <a href="/upload">📤 Upload PDF</a><br>
+    <a href="/files">📚 View Files</a><br>
+    <a href="/logout">🚪 Logout</a>
+</div>
+
+</body>
+</html>

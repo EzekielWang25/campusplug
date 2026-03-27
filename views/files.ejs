@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Files</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>Available PDFs 📚</h1>
+
+    <a href="/dashboard">Back</a>
+
+    <hr>
+
+    <form method="GET" action="/files">
+        <input type="text" name="search" placeholder="Search..." value="<%= search %>">
+        <input type="text" name="department" placeholder="Department" value="<%= department %>">
+        <input type="text" name="level" placeholder="Level" value="<%= level %>">
+
+        <button type="submit">Search</button>
+    </form>
+
+    <hr>
+
+    <% if (files.length === 0) { %>
+        <p>No files found.</p>
+    <% } %>
+
+    <% files.forEach(file => { %>
+        <div class="file-card">
+            <strong><%= file.originalname %></strong><br>
+            Uploaded by: <%= file.uploadedBy %><br>
+            Department: <%= file.department %><br>
+            Level: <%= file.level %><br>
+
+            <a href="/uploads/<%= file.filename %>" download>Download 📥</a>
+        </div>
+    <% }) %>
+</div>
+
+</body>
+</html>
