@@ -12,11 +12,10 @@ const app = express();
 // VIEW ENGINE
 app.set("view engine", "ejs");
 
-// MIDDLEWARE
+// ================= MIDDLEWARE =================
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
-// SESSION
 app.use(session({
     secret: "secretkey",
     resave: false,
@@ -24,16 +23,20 @@ app.use(session({
 }));
 
 // ================= FILE PATHS =================
-
-// Make sure files.json path works everywhere
 const FILES_PATH = path.join(__dirname, "uploads", "files.json");
 const USERS_PATH = path.join(__dirname, "users.json");
 
-// ================= FILE UPLOAD SETUP =================
+// ================= HELPER =================
+function ensureFileExists(filePath) {
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, "[]");
+    }
+}
 
+// ================= FILE UPLOAD =================
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, "uploads/");
+        cb(null, path.join(__dirname, "uploads"));
     },
     filename: (req, file, cb) => {
         cb(null, Date.now() + "-" + file.originalname);
@@ -42,17 +45,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// MAKE UPLOADS PUBLIC
-app.use("/uploads", express.static("uploads"));
-
-// ================= HELPER FUNCTIONS =================
-
-// Ensure JSON file exists
-function ensureFileExists(filePath) {
-    if (!fs.existsSync(filePath)) {
-        fs.writeFileSync(filePath, "[]");
-    }
-}
+// SERVE UPLOADS
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ================= ROUTES =================
 
@@ -136,8 +130,9 @@ app.get("/dashboard", (req, res) => {
 // ================= LOGOUT =================
 
 app.get("/logout", (req, res) => {
-    req.session.destroy();
-    res.redirect("/");
+    req.session.destroy(() => {
+        res.redirect("/");
+    });
 });
 
 // ================= UPLOAD =================
@@ -149,16 +144,25 @@ app.get("/upload", (req, res) => {
 });
 
 app.post("/upload", upload.single("pdf"), (req, res) => {
+    if (!req.file) {
+        return res.send("❌ No file uploaded");
+    }
+
     ensureFileExists(FILES_PATH);
 
-    const file = req.file;
     const user = req.session.user;
 
-    const files = JSON.parse(fs.readFileSync(FILES_PATH));
+    let files = [];
+
+    try {
+        files = JSON.parse(fs.readFileSync(FILES_PATH));
+    } catch {
+        files = [];
+    }
 
     files.push({
-        filename: file.filename,
-        originalname: file.originalname,
+        filename: req.file.filename,
+        originalname: req.file.originalname,
         school: user.school,
         department: user.department,
         level: user.level,
@@ -167,7 +171,7 @@ app.post("/upload", upload.single("pdf"), (req, res) => {
 
     fs.writeFileSync(FILES_PATH, JSON.stringify(files, null, 2));
 
-    res.send("✅ File uploaded successfully!");
+    res.redirect("/files");
 });
 
 // ================= VIEW FILES + SEARCH =================
@@ -179,7 +183,13 @@ app.get("/files", (req, res) => {
 
     const user = req.session.user;
 
-    const files = JSON.parse(fs.readFileSync(FILES_PATH));
+    let files = [];
+
+    try {
+        files = JSON.parse(fs.readFileSync(FILES_PATH));
+    } catch {
+        files = [];
+    }
 
     const search = req.query.search || "";
     const department = req.query.department || "";
@@ -213,7 +223,7 @@ app.get("/files", (req, res) => {
     });
 });
 
-// ================= PORT (DEPLOY READY) =================
+// ================= PORT =================
 
 const PORT = process.env.PORT || 3000;
 
