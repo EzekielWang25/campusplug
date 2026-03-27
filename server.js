@@ -1,10 +1,10 @@
 // ================= IMPORTS =================
 const express = require("express");
-const fs = require("fs");
 const session = require("express-session");
 const multer = require("multer");
 const bcrypt = require("bcrypt");
 const path = require("path");
+const mongoose = require("mongoose");
 
 // ================= APP SETUP =================
 const app = express();
@@ -22,18 +22,40 @@ app.use(session({
     saveUninitialized: true
 }));
 
-// ================= FILE PATHS =================
-const FILES_PATH = path.join(__dirname, "uploads", "files.json");
-const USERS_PATH = path.join(__dirname, "users.json");
+// ================= DATABASE =================
 
-// ================= HELPER =================
-function ensureFileExists(filePath) {
-    if (!fs.existsSync(filePath)) {
-        fs.writeFileSync(filePath, "[]");
-    }
-}
+// 🔥 PUT YOUR MONGODB URL HERE
+mongoose.connect("YOUR_MONGODB_URL")
+.then(() => console.log("MongoDB Connected ✅"))
+.catch(err => console.log(err));
+
+// ================= MODELS =================
+
+// USER MODEL
+const userSchema = new mongoose.Schema({
+    username: String,
+    password: String,
+    school: String,
+    department: String,
+    level: String
+});
+
+const User = mongoose.model("User", userSchema);
+
+// FILE MODEL
+const fileSchema = new mongoose.Schema({
+    filename: String,
+    originalname: String,
+    school: String,
+    department: String,
+    level: String,
+    uploadedBy: String
+});
+
+const File = mongoose.model("File", fileSchema);
 
 // ================= FILE UPLOAD =================
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, path.join(__dirname, "uploads"));
@@ -52,13 +74,10 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // HOME
 app.get("/", (req, res) => {
-    try {
-        res.render("index");
-    } catch (err) {
-        res.send("CampusPlug is LIVE 🚀 (view error fixed)");
-    }
+    res.render("index");
 });
 
+// TEST ROUTE
 app.get("/test", (req, res) => {
     res.send("SERVER IS WORKING ✅");
 });
@@ -69,33 +88,28 @@ app.get("/signup", (req, res) => {
     res.render("signup");
 });
 
-app.post("/signup", (req, res) => {
-    ensureFileExists(USERS_PATH);
-
+app.post("/signup", async (req, res) => {
     const { username, password, school, department, level } = req.body;
 
-    const users = JSON.parse(fs.readFileSync(USERS_PATH));
-
-    const userExists = users.find(u => u.username === username);
+    const userExists = await User.findOne({ username });
 
     if (userExists) {
         return res.send("❌ Username already exists");
     }
 
-    bcrypt.hash(password, 10, (err, hashedPassword) => {
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-        users.push({
-            username,
-            password: hashedPassword,
-            school,
-            department,
-            level
-        });
-
-        fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2));
-
-        res.send("✅ Signup successful! You can now login.");
+    const newUser = new User({
+        username,
+        password: hashedPassword,
+        school,
+        department,
+        level
     });
+
+    await newUser.save();
+
+    res.send("✅ Signup successful!");
 });
 
 // ================= LOGIN =================
@@ -104,27 +118,23 @@ app.get("/login", (req, res) => {
     res.render("login");
 });
 
-app.post("/login", (req, res) => {
-    ensureFileExists(USERS_PATH);
-
+app.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
-    const users = JSON.parse(fs.readFileSync(USERS_PATH));
-
-    const user = users.find(u => u.username === username);
+    const user = await User.findOne({ username });
 
     if (!user) {
-        return res.send("❌ Invalid username or password");
+        return res.send("❌ Invalid username");
     }
 
-    bcrypt.compare(password, user.password, (err, result) => {
-        if (!result) {
-            return res.send("❌ Invalid username or password");
-        }
+    const match = await bcrypt.compare(password, user.password);
 
-        req.session.user = user;
-        res.redirect("/dashboard");
-    });
+    if (!match) {
+        return res.send("❌ Wrong password");
+    }
+
+    req.session.user = user;
+    res.redirect("/dashboard");
 });
 
 // ================= DASHBOARD =================
@@ -151,24 +161,12 @@ app.get("/upload", (req, res) => {
     res.render("upload");
 });
 
-app.post("/upload", upload.single("pdf"), (req, res) => {
-    if (!req.file) {
-        return res.send("❌ No file uploaded");
-    }
-
-    ensureFileExists(FILES_PATH);
+app.post("/upload", upload.single("pdf"), async (req, res) => {
+    if (!req.file) return res.send("❌ No file uploaded");
 
     const user = req.session.user;
 
-    let files = [];
-
-    try {
-        files = JSON.parse(fs.readFileSync(FILES_PATH));
-    } catch {
-        files = [];
-    }
-
-    files.push({
+    const newFile = new File({
         filename: req.file.filename,
         originalname: req.file.originalname,
         school: user.school,
@@ -177,54 +175,44 @@ app.post("/upload", upload.single("pdf"), (req, res) => {
         uploadedBy: user.username
     });
 
-    fs.writeFileSync(FILES_PATH, JSON.stringify(files, null, 2));
+    await newFile.save();
 
     res.redirect("/files");
 });
 
 // ================= VIEW FILES + SEARCH =================
 
-app.get("/files", (req, res) => {
+app.get("/files", async (req, res) => {
     if (!req.session.user) return res.redirect("/login");
 
-    ensureFileExists(FILES_PATH);
-
     const user = req.session.user;
-
-    let files = [];
-
-    try {
-        files = JSON.parse(fs.readFileSync(FILES_PATH));
-    } catch {
-        files = [];
-    }
 
     const search = req.query.search || "";
     const department = req.query.department || "";
     const level = req.query.level || "";
 
-    let filteredFiles = files.filter(file => file.school === user.school);
+    let files = await File.find({ school: user.school });
 
     if (search) {
-        filteredFiles = filteredFiles.filter(file =>
-            file.originalname.toLowerCase().includes(search.toLowerCase())
+        files = files.filter(f =>
+            f.originalname.toLowerCase().includes(search.toLowerCase())
         );
     }
 
     if (department) {
-        filteredFiles = filteredFiles.filter(file =>
-            file.department.toLowerCase() === department.toLowerCase()
+        files = files.filter(f =>
+            f.department.toLowerCase() === department.toLowerCase()
         );
     }
 
     if (level) {
-        filteredFiles = filteredFiles.filter(file =>
-            file.level.toLowerCase() === level.toLowerCase()
+        files = files.filter(f =>
+            f.level.toLowerCase() === level.toLowerCase()
         );
     }
 
     res.render("files", {
-        files: filteredFiles,
+        files,
         search,
         department,
         level
@@ -232,9 +220,10 @@ app.get("/files", (req, res) => {
 });
 
 // ================= ERROR HANDLER =================
+
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).send("Something broke on server 😢");
+    res.status(500).send("Something broke 😢");
 });
 
 // ================= PORT =================
