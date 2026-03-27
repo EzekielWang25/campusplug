@@ -55,6 +55,10 @@ app.get("/", (req, res) => {
     res.render("index");
 });
 
+app.get("/test", (req, res) => {
+    res.send("SERVER IS WORKING ✅");
+});
+
 // ================= SIGNUP =================
 
 app.get("/signup", (req, res) => {
