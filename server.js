@@ -25,7 +25,7 @@ app.use(session({
 // ================= DATABASE =================
 
 // 🔥 REPLACE WITH YOUR REAL URL
-const MONGO_URL = "mongodb+srv://EzekielWang:<db_password>@campusplug.rt3jbxw.mongodb.net/?appName=CampusPlug";
+const MONGO_URL = "mongodb+srv://EzekielWang:P3m4an2004.@campusplug.rt3jbxw.mongodb.net/?appName=CampusPlug";
 
 mongoose.connect(MONGO_URL)
 .then(() => console.log("✅ MongoDB Connected"))
