@@ -25,7 +25,7 @@ app.use(session({
 // ================= DATABASE =================
 
 // 🔥 PUT YOUR MONGODB URL HERE
-mongoose.connect("YOUR_MONGODB_URL")
+mongoose.connect("mongodb+srv://EzekielWang:<db_password>@campusplug.rt3jbxw.mongodb.net/?appName=CampusPlug")
 .then(() => console.log("MongoDB Connected ✅"))
 .catch(err => console.log(err));
 
