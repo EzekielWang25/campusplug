@@ -24,14 +24,15 @@ app.use(session({
 
 // ================= DATABASE =================
 
-// 🔥 PUT YOUR MONGODB URL HERE
-mongoose.connect("mongodb+srv://EzekielWang:<db_password>@campusplug.rt3jbxw.mongodb.net/?appName=CampusPlug")
-.then(() => console.log("MongoDB Connected ✅"))
-.catch(err => console.log(err));
+// 🔥 REPLACE WITH YOUR REAL URL
+const MONGO_URL = "mongodb+srv://EzekielWang:<db_password>@campusplug.rt3jbxw.mongodb.net/?appName=CampusPlug";
+
+mongoose.connect(MONGO_URL)
+.then(() => console.log("✅ MongoDB Connected"))
+.catch(err => console.log("❌ MongoDB ERROR:", err));
 
 // ================= MODELS =================
 
-// USER MODEL
 const userSchema = new mongoose.Schema({
     username: String,
     password: String,
@@ -42,7 +43,6 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model("User", userSchema);
 
-// FILE MODEL
 const fileSchema = new mongoose.Schema({
     filename: String,
     originalname: String,
@@ -74,7 +74,11 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // HOME
 app.get("/", (req, res) => {
-    res.render("index");
+    try {
+        res.render("index");
+    } catch {
+        res.send("CampusPlug LIVE 🚀");
+    }
 });
 
 // TEST ROUTE
@@ -89,27 +93,32 @@ app.get("/signup", (req, res) => {
 });
 
 app.post("/signup", async (req, res) => {
-    const { username, password, school, department, level } = req.body;
+    try {
+        const { username, password, school, department, level } = req.body;
 
-    const userExists = await User.findOne({ username });
+        const userExists = await User.findOne({ username });
 
-    if (userExists) {
-        return res.send("❌ Username already exists");
+        if (userExists) {
+            return res.send("❌ Username already exists");
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = new User({
+            username,
+            password: hashedPassword,
+            school,
+            department,
+            level
+        });
+
+        await newUser.save();
+
+        res.send("✅ Signup successful!");
+    } catch (err) {
+        console.log("Signup Error:", err);
+        res.send("❌ Signup failed");
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = new User({
-        username,
-        password: hashedPassword,
-        school,
-        department,
-        level
-    });
-
-    await newUser.save();
-
-    res.send("✅ Signup successful!");
 });
 
 // ================= LOGIN =================
@@ -119,22 +128,27 @@ app.get("/login", (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-    const { username, password } = req.body;
+    try {
+        const { username, password } = req.body;
 
-    const user = await User.findOne({ username });
+        const user = await User.findOne({ username });
 
-    if (!user) {
-        return res.send("❌ Invalid username");
+        if (!user) {
+            return res.send("❌ Invalid username");
+        }
+
+        const match = await bcrypt.compare(password, user.password);
+
+        if (!match) {
+            return res.send("❌ Wrong password");
+        }
+
+        req.session.user = user;
+        res.redirect("/dashboard");
+    } catch (err) {
+        console.log("Login Error:", err);
+        res.send("❌ Login failed");
     }
-
-    const match = await bcrypt.compare(password, user.password);
-
-    if (!match) {
-        return res.send("❌ Wrong password");
-    }
-
-    req.session.user = user;
-    res.redirect("/dashboard");
 });
 
 // ================= DASHBOARD =================
@@ -162,68 +176,78 @@ app.get("/upload", (req, res) => {
 });
 
 app.post("/upload", upload.single("pdf"), async (req, res) => {
-    if (!req.file) return res.send("❌ No file uploaded");
+    try {
+        if (!req.file) return res.send("❌ No file uploaded");
 
-    const user = req.session.user;
+        const user = req.session.user;
 
-    const newFile = new File({
-        filename: req.file.filename,
-        originalname: req.file.originalname,
-        school: user.school,
-        department: user.department,
-        level: user.level,
-        uploadedBy: user.username
-    });
+        const newFile = new File({
+            filename: req.file.filename,
+            originalname: req.file.originalname,
+            school: user.school,
+            department: user.department,
+            level: user.level,
+            uploadedBy: user.username
+        });
 
-    await newFile.save();
+        await newFile.save();
 
-    res.redirect("/files");
+        res.redirect("/files");
+    } catch (err) {
+        console.log("Upload Error:", err);
+        res.send("❌ Upload failed");
+    }
 });
 
-// ================= VIEW FILES + SEARCH =================
+// ================= VIEW FILES =================
 
 app.get("/files", async (req, res) => {
-    if (!req.session.user) return res.redirect("/login");
+    try {
+        if (!req.session.user) return res.redirect("/login");
 
-    const user = req.session.user;
+        const user = req.session.user;
 
-    const search = req.query.search || "";
-    const department = req.query.department || "";
-    const level = req.query.level || "";
+        const search = req.query.search || "";
+        const department = req.query.department || "";
+        const level = req.query.level || "";
 
-    let files = await File.find({ school: user.school });
+        let files = await File.find({ school: user.school });
 
-    if (search) {
-        files = files.filter(f =>
-            f.originalname.toLowerCase().includes(search.toLowerCase())
-        );
+        if (search) {
+            files = files.filter(f =>
+                f.originalname.toLowerCase().includes(search.toLowerCase())
+            );
+        }
+
+        if (department) {
+            files = files.filter(f =>
+                f.department.toLowerCase() === department.toLowerCase()
+            );
+        }
+
+        if (level) {
+            files = files.filter(f =>
+                f.level.toLowerCase() === level.toLowerCase()
+            );
+        }
+
+        res.render("files", {
+            files,
+            search,
+            department,
+            level
+        });
+    } catch (err) {
+        console.log("Files Error:", err);
+        res.send("❌ Failed to load files");
     }
-
-    if (department) {
-        files = files.filter(f =>
-            f.department.toLowerCase() === department.toLowerCase()
-        );
-    }
-
-    if (level) {
-        files = files.filter(f =>
-            f.level.toLowerCase() === level.toLowerCase()
-        );
-    }
-
-    res.render("files", {
-        files,
-        search,
-        department,
-        level
-    });
 });
 
 // ================= ERROR HANDLER =================
 
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).send("Something broke 😢");
+    res.status(500).send("Server error 😢");
 });
 
 // ================= PORT =================
